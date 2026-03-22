@@ -21,12 +21,25 @@ POSTGRES_DSN = os.getenv("POSTGRES_URL")  # Full connection string from Neon
 def run_mysql_judge(setup_sql: str, user_sql: str, expected_sql: str) -> dict:
     prefix = f"tmp_{uuid.uuid4().hex[:8]}"
     conn = None
+    created_tables = []
     try:
         conn = mysql.connector.connect(**MYSQL_CONFIG)
         cur = conn.cursor()
 
         setup = setup_sql.replace("{{prefix}}", prefix)
-        for stmt in _split_statements(setup):
+        statements = _split_statements(setup)
+
+        for stmt in statements:
+            # Auto-extract table name and drop before create to avoid "already exists"
+            upper = stmt.strip().upper()
+            if upper.startswith("CREATE TABLE"):
+                # Extract table name robustly
+                parts = stmt.split()
+                tbl_idx = parts.index("TABLE") + 1 if "TABLE" in [p.upper() for p in parts] else None
+                if tbl_idx:
+                    tbl_name = parts[tbl_idx].strip("(`")
+                    cur.execute(f"DROP TABLE IF EXISTS `{tbl_name}`")
+                    created_tables.append(tbl_name)
             cur.execute(stmt)
         conn.commit()
 
@@ -47,12 +60,8 @@ def run_mysql_judge(setup_sql: str, user_sql: str, expected_sql: str) -> dict:
         if conn:
             try:
                 cur2 = conn.cursor()
-                cur2.execute(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = %s AND table_name LIKE %s",
-                    (os.getenv("MYSQL_DATABASE"), f"{prefix}%")
-                )
-                for (tbl,) in cur2.fetchall():
+                # Drop all tables that were created in this run
+                for tbl in created_tables:
                     cur2.execute(f"DROP TABLE IF EXISTS `{tbl}`")
                 conn.commit()
             except Exception:
