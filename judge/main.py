@@ -33,9 +33,9 @@ def judge(
 
     if req.db_type == "mysql":
         result = run_mysql_judge(req.setup_sql, req.user_sql, req.expected_sql)
-    elif req.db_type == "postgres":
+    elif req.db_type in ("postgres", "postgresql"):
         result = run_postgres_judge(req.setup_sql, req.user_sql, req.expected_sql)
     else:
-        raise HTTPException(status_code=400, detail="db_type must be 'mysql' or 'postgres'")
+        raise HTTPException(status_code=400, detail="db_type must be 'mysql' or 'postgres' or 'postgresql'")
 
     return result
