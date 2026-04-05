@@ -21,6 +21,17 @@ POSTGRES_DSN = os.getenv("POSTGRES_URL")  # Full connection string from Neon
 mysql_lock = threading.Lock()
 
 
+from decimal import Decimal
+
+def _decimal_to_str(obj):
+    if isinstance(obj, list):
+        return [_decimal_to_str(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _decimal_to_str(v) for k, v in obj.items()}
+    if isinstance(obj, Decimal):
+        return str(obj)
+    return obj
+
 def run_mysql_judge(setup_sql: str, user_sql: str, expected_sql: str) -> dict:
     """
     Execute setup → expected_sql → user_sql on a shared MySQL database.
@@ -77,8 +88,8 @@ def run_mysql_judge(setup_sql: str, user_sql: str, expected_sql: str) -> dict:
 
             return {
                 "verdict": verdict,
-                "expected": expected_rows,
-                "got": user_rows,
+                "expected": _decimal_to_str(expected_rows),
+                "got": _decimal_to_str(user_rows),
                 "expected_columns": expected_columns,
                 "columns": user_columns,
             }
@@ -129,8 +140,8 @@ def run_postgres_judge(setup_sql: str, user_sql: str, expected_sql: str) -> dict
         conn.commit()
         return {
             "verdict": verdict,
-            "expected": expected_rows,
-            "got": user_rows,
+            "expected": _decimal_to_str(expected_rows),
+            "got": _decimal_to_str(user_rows),
             "expected_columns": expected_columns,
             "columns": user_columns,
         }
